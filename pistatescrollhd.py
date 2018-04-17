@@ -7,7 +7,15 @@ import telnetlib
 import os
 import subprocess
 
+
+# Re-check time in case of active issues
+errseconds = 10
+
 sphd.rotate(degrees=180)
+
+def listen_to_incoming_calls():
+  # telnet to fritzbox, listen in background?
+  pass
 
 def check_voip():
   def check_one_voip(sipno):
@@ -23,8 +31,8 @@ def check_voip():
 
   for sipno in [0, 1, 3, 4]:
     if not check_one_voip(sipno):
-      return 'TEL '
-  return ''
+      return 'TEL'
+  return None
 
 
 def check_vdr():
@@ -33,75 +41,85 @@ def check_vdr():
      tn.expect([ b'220 vdr SVDRP VideoDiskRecorder .*$' ], 3)
      tn.write(b'QUIT\n')
      tn.close()
-     return ''
+     return None
    except:
      pass
-   return 'VDR '
+   return 'VDR'
 
 def check_wlan():
   try:
     output = subprocess.check_output("iw wlan0 link", shell=True, timeout=3).split(b'\n')[0]
     if b'Connected to' in output:
-      return ''
+      return None
   except:
     pass
 
-  return 'WLAN '
+  return 'WLAN'
 
 def ping(hostname):
   try:
     output = subprocess.check_output("ping -c 1 -W 1 -q " + hostname, shell=True, timeout=3).split(b'\n')[3]
-    if b'0% packet loss' in output:
+    if b'100% packet loss' not in output:
       return True
   except:
     pass
-
+  print('PING RESULT:', output)
   return False
 
 def check_diskstation():
   if ping('diskstation.zuhause'):
-    return ''
-  return 'DISK '
+    return None
+  return 'DISK'
 
 def check_knet():
   if ping('www.google.com'):
-    return ''
-  return 'KNET '
+    return None
+  return 'KNET'
 
 def check_all():
-  ret = ''
-  ret += check_voip()
-  ret += check_vdr()
-  ret += check_wlan()
-  ret += check_diskstation()
-  ret += check_knet()
+  ret = []
+  ret.append(check_voip())
+  ret.append(check_vdr())
+  ret.append(check_wlan())
+  ret.append(check_diskstation())
+  ret.append(check_knet())
+
+  # clear None-s
+  ret = [x for x in ret if x is not None]
 
   return ret
 
 
-def run():
-  while True:
-    msg = check_all()
-    errseconds = 10
+def report(oldones):
     steptime = 0.1
-    lenmsg = len(msg)
-    if lenmsg:
-      print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), msg)
-      sphd.write_string(msg)
-      sphd.show()
-      # only 3 chars fit, but the last one is a space!
-      if lenmsg > 4:
-        # it takes about 0.05s to display stuff
-        for l in range(int(errseconds / (steptime + 0.05))):
-          sphd.scroll(1)
-          time.sleep(steptime)
-          sphd.show()
-      else:
-        time.sleep(errseconds)
-      sphd.clear()
-      sphd.show()
+    msg = ' '.join(oldones)
+    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), msg)
+    sphd.write_string(msg)
+    sphd.show()
+    if len(msg) > 3:
+      # it takes about 0.05s to display stuff
+      for l in range(int(errseconds / (steptime + 0.05))):
+        sphd.scroll(1)
+        time.sleep(steptime)
+        sphd.show()
     else:
-      time.sleep(errseconds * 6)
+      time.sleep(errseconds)
+    sphd.clear()
+    sphd.show()
+
+def run():
+  prev = []
+  while True:
+    res = check_all()
+    oldones = [x for x in res if x in prev]
+    prev = res
+    if len(oldones):
+      report(oldones)
+    else:
+      if len(res):
+        time.sleep(errseconds)
+      else:
+        time.sleep(60)
 
 run()
 
