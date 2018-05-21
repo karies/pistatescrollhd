@@ -20,10 +20,10 @@ def listen_to_incoming_calls():
 def check_voip():
   def check_one_voip(sipno):
     try:
-      resp = urllib.request.urlopen(url = 'http://fritz.zuhause/query.lua?SIP1=sip:settings/sip' + str(sipno) + '/activated',
+      resp = urllib.request.urlopen(url = 'http://fritz.zuhause/query.lua?SIP1=sip:settings/sip' + str(sipno) + '/connect',
                                     timeout = 5)
       html = resp.read()
-      if b'"SIP1": "1"' not in html:
+      if b'"SIP1": "2"' not in html:
         return False
       return True
     except:
@@ -61,9 +61,9 @@ def ping(hostname):
     output = subprocess.check_output("ping -c 1 -W 1 -q " + hostname, shell=True, timeout=3).split(b'\n')[3]
     if b'100% packet loss' not in output:
       return True
+    print('PING RESULT:', output)
   except:
     pass
-  print('PING RESULT:', output)
   return False
 
 def check_diskstation():
